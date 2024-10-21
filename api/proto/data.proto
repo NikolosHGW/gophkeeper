@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package data;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "api/datapb";
+
+message DataItem {
+    int32 id = 1;
+    string info_type = 2; // 'login_password', 'text', 'binary', 'bank_card'
+    string info = 3;
+    string meta = 4;
+    google.protobuf.Timestamp created = 5;
+}
+
+message AddDataRequest {
+    DataItem data = 1;
+}
+
+message AddDataResponse {
+    int32 id = 1;
+}
+
+message GetDataRequest {
+    int32 id = 1;
+}
+
+message GetDataResponse {
+    DataItem data = 1;
+}
+
+message UpdateDataRequest {
+    DataItem data = 1;
+}
+
+message UpdateDataResponse {}
+
+message DeleteDataRequest {
+    int32 id = 1;
+}
+
+message DeleteDataResponse {}
+
+service DataService {
+    rpc AddData(AddDataRequest) returns (AddDataResponse);
+    rpc GetData(GetDataRequest) returns (GetDataResponse);
+    rpc UpdateData(UpdateDataRequest) returns (UpdateDataResponse);
+    rpc DeleteData(DeleteDataRequest) returns (DeleteDataResponse);
+}

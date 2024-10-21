@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16.1
+    environment:
+      POSTGRES_DB: "gophkeeper"
+      POSTGRES_USER: "nikolos"
+      POSTGRES_PASSWORD: "abc123"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
