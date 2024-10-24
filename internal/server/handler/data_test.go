@@ -65,7 +65,7 @@ func TestAddData(t *testing.T) {
 			request: &datapb.AddDataRequest{
 				Data: &datapb.DataItem{
 					InfoType: "password",
-					Info:     "mypassword",
+					Info:     []byte("mypassword"),
 					Meta:     "meta",
 				},
 			},
@@ -97,7 +97,7 @@ func TestAddData(t *testing.T) {
 			request: &datapb.AddDataRequest{
 				Data: &datapb.DataItem{
 					InfoType: "password",
-					Info:     "mypassword",
+					Info:     []byte("mypassword"),
 					Meta:     "meta",
 				},
 			},
@@ -164,7 +164,7 @@ func TestGetData(t *testing.T) {
 				Data: &datapb.DataItem{
 					Id:       123,
 					InfoType: "password",
-					Info:     "mypassword",
+					Info:     []byte("mypassword"),
 					Meta:     "meta",
 				},
 			},
@@ -207,7 +207,7 @@ func TestGetData(t *testing.T) {
 				} else {
 					if resp.Data.Id != tt.expectedResp.Data.Id ||
 						resp.Data.InfoType != tt.expectedResp.Data.InfoType ||
-						resp.Data.Info != tt.expectedResp.Data.Info ||
+						string(resp.Data.Info) != string(tt.expectedResp.Data.Info) ||
 						resp.Data.Meta != tt.expectedResp.Data.Meta {
 						t.Errorf("Response data does not match expected")
 					}
@@ -240,7 +240,7 @@ func TestUpdateData(t *testing.T) {
 				Data: &datapb.DataItem{
 					Id:       123,
 					InfoType: "password",
-					Info:     "newpassword",
+					Info:     []byte("newpassword"),
 					Meta:     "newmeta",
 					Created:  timestamppb.New(time.Now()),
 				},
@@ -271,7 +271,7 @@ func TestUpdateData(t *testing.T) {
 				Data: &datapb.DataItem{
 					Id:       123,
 					InfoType: "password",
-					Info:     "newpassword",
+					Info:     []byte("newpassword"),
 					Meta:     "newmeta",
 					Created:  timestamppb.New(time.Now()),
 				},

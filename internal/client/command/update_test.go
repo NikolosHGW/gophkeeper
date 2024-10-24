@@ -3,217 +3,369 @@ package command
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
+	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
 	"github.com/NikolosHGW/goph-keeper/internal/client/entity"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type MockUpdateDataService struct {
-	mock.Mock
+type mockUpdateDataService struct {
+	dataItem  *datapb.DataItem
+	getErr    error
+	updateErr error
 }
 
-func (m *MockUpdateDataService) GetData(ctx context.Context, token string, id int32) (*datapb.DataItem, error) {
-	args := m.Called(ctx, token, id)
-	if dataItem, ok := args.Get(0).(*datapb.DataItem); ok {
-		return dataItem, args.Error(1)
+func (m *mockUpdateDataService) GetData(ctx context.Context, token string, id int32) (*datapb.DataItem, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
 	}
-	return nil, args.Error(1)
+	return m.dataItem, nil
 }
 
-func (m *MockUpdateDataService) UpdateData(ctx context.Context, token string, data *datapb.DataItem) error {
-	args := m.Called(ctx, token, data)
-	return args.Error(0)
+func (m *mockUpdateDataService) UpdateData(ctx context.Context, token string, data *datapb.DataItem) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	m.dataItem = data
+	return nil
 }
 
-type errorWriter struct {
-	err error
+func TestUpdateCommand_Execute_TokenMissing(t *testing.T) {
+	dataService := &mockUpdateDataService{}
+	tokenHolder := &entity.TokenHolder{Token: ""}
+	reader := strings.NewReader("")
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err == nil || err.Error() != "вы должны войти в систему" {
+		t.Errorf("Ожидалась ошибка 'вы должны войти в систему', получили: %v", err)
+	}
 }
 
-func (w *errorWriter) Write(p []byte) (n int, err error) {
-	return 0, w.err
+func TestUpdateCommand_Execute_InvalidIDInput(t *testing.T) {
+	dataService := &mockUpdateDataService{}
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+	reader := strings.NewReader("abc\n")
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "некорректный ID") {
+		t.Errorf("Ожидалась ошибка некорректного ID, получили: %v", err)
+	}
 }
 
-func TestUpdateCommand_Execute(t *testing.T) {
-	fixedTime := time.Date(2023, 10, 18, 12, 0, 0, 0, time.UTC)
-	fixedTimestamp := &timestamppb.Timestamp{Seconds: fixedTime.Unix()}
+func TestUpdateCommand_Execute_GetDataError(t *testing.T) {
+	dataService := &mockUpdateDataService{
+		getErr: errors.New("service error"),
+	}
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+	reader := strings.NewReader("1\n")
+	writer := &bytes.Buffer{}
 
-	tests := []struct {
-		name           string
-		token          string
-		input          string
-		mockSetup      func(m *MockUpdateDataService)
-		expectedOutput string
-		expectedError  error
-	}{
-		{
-			name:  "Успешное обновление всех полей",
-			token: "valid_token",
-			input: "1\nnew_type\nnew_info\nnew_meta\n",
-			mockSetup: func(m *MockUpdateDataService) {
-				originalData := &datapb.DataItem{
-					Id:       1,
-					InfoType: "login_password",
-					Info:     "user123",
-					Meta:     "meta_info",
-					Created:  fixedTimestamp,
-				}
-				m.On("GetData", mock.Anything, "valid_token", int32(1)).Return(originalData, nil)
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
 
-				updatedData := &datapb.DataItem{
-					Id:       1,
-					InfoType: "new_type",
-					Info:     "new_info",
-					Meta:     "new_meta",
-					Created:  fixedTimestamp,
-				}
-				m.On("UpdateData", mock.Anything, "valid_token", updatedData).Return(nil)
-			},
-			expectedOutput: "Введите ID данных: Текущий тип (login_password): Текущие данные (user123): Текущая мета (meta_info): Данные успешно обновлены.\n",
-			expectedError:  nil,
-		},
-		{
-			name:           "Без токена",
-			token:          "",
-			input:          "",
-			mockSetup:      func(m *MockUpdateDataService) {},
-			expectedOutput: "",
-			expectedError:  errors.New("вы должны войти в систему"),
-		},
-		{
-			name:           "Ошибка при записи ID",
-			token:          "valid_token",
-			input:          "",
-			mockSetup:      func(m *MockUpdateDataService) {},
-			expectedOutput: "",
-			expectedError:  errors.New("ошибка stdin ID: write error"),
-		},
-		{
-			name:           "Ошибка при чтении ID",
-			token:          "valid_token",
-			input:          "",
-			mockSetup:      func(m *MockUpdateDataService) {},
-			expectedOutput: "Введите ID данных: ",
-			expectedError:  errors.New("ошибка ввода ID"),
-		},
-		{
-			name:           "Невалидный токен",
-			token:          "valid_token",
-			input:          "abc\n",
-			mockSetup:      func(m *MockUpdateDataService) {},
-			expectedOutput: "Введите ID данных: ",
-			expectedError:  errors.New("некорректный ID: strconv.ParseInt: parsing \"abc\": invalid syntax"),
-		},
-		{
-			name:  "Ошибка при получении данных",
-			token: "valid_token",
-			input: "2\n",
-			mockSetup: func(m *MockUpdateDataService) {
-				m.On("GetData", mock.Anything, "valid_token", int32(2)).Return(nil, fmt.Errorf("service error"))
-			},
-			expectedOutput: "Введите ID данных: ",
-			expectedError:  errors.New("ошибка получения данных: service error"),
-		},
-		{
-			name:  "Ошибка при обновлении данных",
-			token: "valid_token",
-			input: "3\nnew_type\nnew_info\nnew_meta\n",
-			mockSetup: func(m *MockUpdateDataService) {
-				originalData := &datapb.DataItem{
-					Id:       3,
-					InfoType: "original_type",
-					Info:     "original_info",
-					Meta:     "original_meta",
-					Created:  fixedTimestamp,
-				}
-				m.On("GetData", mock.Anything, "valid_token", int32(3)).Return(originalData, nil)
+	err := updateCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "ошибка получения данных") {
+		t.Errorf("Ожидалась ошибка получения данных, получили: %v", err)
+	}
+}
 
-				updatedData := &datapb.DataItem{
-					Id:       3,
-					InfoType: "new_type",
-					Info:     "new_info",
-					Meta:     "new_meta",
-					Created:  fixedTimestamp,
-				}
-				m.On("UpdateData", mock.Anything, "valid_token", updatedData).Return(fmt.Errorf("update error"))
-			},
-			expectedOutput: "Введите ID данных: Текущий тип (original_type): Текущие данные (original_info): Текущая мета (original_meta): ",
-			expectedError:  errors.New("ошибка обновления данных: update error"),
-		},
-		{
-			name:  "Пустые поля сохраняют исходные значения",
-			token: "valid_token",
-			input: "4\n\n\n\n",
-			mockSetup: func(m *MockUpdateDataService) {
-				originalData := &datapb.DataItem{
-					Id:       4,
-					InfoType: "original_type",
-					Info:     "original_info",
-					Meta:     "original_meta",
-					Created:  fixedTimestamp,
-				}
-				m.On("GetData", mock.Anything, "valid_token", int32(4)).Return(originalData, nil)
-
-				updatedData := &datapb.DataItem{
-					Id:       4,
-					InfoType: "original_type",
-					Info:     "original_info",
-					Meta:     "original_meta",
-					Created:  fixedTimestamp,
-				}
-				m.On("UpdateData", mock.Anything, "valid_token", updatedData).Return(nil)
-			},
-			expectedOutput: "Введите ID данных: Текущий тип (original_type): Текущие данные (original_info): Текущая мета (original_meta): Данные успешно обновлены.\n",
-			expectedError:  nil,
-		},
+func TestUpdateCommand_Execute_UnknownInfoType(t *testing.T) {
+	dataItem := &datapb.DataItem{
+		Id:       1,
+		InfoType: "unknown_type",
+		Info:     []byte("{}"),
+		Meta:     "meta data",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := new(MockUpdateDataService)
-			tt.mockSetup(mockService)
+	dataService := &mockUpdateDataService{
+		dataItem: dataItem,
+	}
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+	reader := strings.NewReader("1\n")
+	writer := &bytes.Buffer{}
 
-			tokenHolder := &entity.TokenHolder{
-				Token: tt.token,
-			}
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
 
-			var writer io.Writer
-			var outputBuffer bytes.Buffer
+	err := updateCmd.Execute()
+	if err != nil {
+		t.Fatalf("Не ожидалось ошибки, получили: %v", err)
+	}
 
-			if tt.name == "Ошибка при записи ID" {
-				writer = &errorWriter{err: errors.New("write error")}
-			} else {
-				writer = &outputBuffer
-			}
+	output := writer.String()
+	if !strings.Contains(output, "Неизвестный тип данных") {
+		t.Errorf("Вывод не содержит 'Неизвестный тип данных', получили: %s", output)
+	}
+}
 
-			reader := strings.NewReader(tt.input)
+func TestUpdateCommand_Execute_UpdateLoginPasswordData(t *testing.T) {
+	currentData := entity.LoginPasswordData{
+		Login:    "current_user",
+		Password: "current_pass",
+		URL:      "http://current.com",
+	}
+	infoBytes, _ := json.Marshal(currentData)
+	dataItem := &datapb.DataItem{
+		Id:       1,
+		InfoType: "login_password",
+		Info:     infoBytes,
+		Meta:     "current meta",
+	}
 
-			cmd := NewUpdateCommand(mockService, tokenHolder, reader, writer)
+	dataService := &mockUpdateDataService{
+		dataItem: dataItem,
+	}
 
-			err := cmd.Execute()
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
 
-			if tt.expectedError != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	input := strings.Join([]string{
+		"1",
+		"new_user",
+		"new_pass",
+		"new_url",
+		"new meta",
+	}, "\n") + "\n"
 
-			if tt.name == "Error writing ID prompt" {
-				assert.Equal(t, "", outputBuffer.String())
-			} else {
-				assert.Equal(t, tt.expectedOutput, outputBuffer.String())
-			}
+	reader := strings.NewReader(input)
+	writer := &bytes.Buffer{}
 
-			mockService.AssertExpectations(t)
-		})
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err != nil {
+		t.Fatalf("Не ожидалось ошибки, получили: %v", err)
+	}
+
+	expectedUpdatedData := &entity.LoginPasswordData{
+		Login:    "new_user",
+		Password: "new_pass",
+		URL:      "new_url",
+	}
+	expectedInfoBytes, _ := json.Marshal(expectedUpdatedData)
+
+	if dataService.dataItem.InfoType != "login_password" {
+		t.Errorf("Ожидался InfoType 'login_password', получили: %s", dataService.dataItem.InfoType)
+	}
+
+	if !bytes.Equal(dataService.dataItem.Info, expectedInfoBytes) {
+		t.Errorf("Обновленные данные Info не совпадают с ожидаемыми")
+	}
+
+	if dataService.dataItem.Meta != "new meta" {
+		t.Errorf("Ожидалась Meta 'new meta', получили: %s", dataService.dataItem.Meta)
+	}
+
+	output := writer.String()
+	if !strings.Contains(output, "Данные успешно обновлены.") {
+		t.Errorf("Вывод не содержит 'Данные успешно обновлены.', получили: %s", output)
+	}
+}
+
+func TestUpdateCommand_Execute_UpdateTextData(t *testing.T) {
+	currentData := entity.TextData{
+		Text: "current text",
+	}
+	infoBytes, _ := json.Marshal(currentData)
+	dataItem := &datapb.DataItem{
+		Id:       2,
+		InfoType: "text",
+		Info:     infoBytes,
+		Meta:     "current meta",
+	}
+
+	dataService := &mockUpdateDataService{
+		dataItem: dataItem,
+	}
+
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+
+	input := strings.Join([]string{
+		"2",
+		"new text",
+		"new meta",
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err != nil {
+		t.Fatalf("Не ожидалось ошибки, получили: %v", err)
+	}
+
+	expectedUpdatedData := &entity.TextData{
+		Text: "new text",
+	}
+	expectedInfoBytes, _ := json.Marshal(expectedUpdatedData)
+
+	if dataService.dataItem.InfoType != "text" {
+		t.Errorf("Ожидался InfoType 'text', получили: %s", dataService.dataItem.InfoType)
+	}
+
+	if !bytes.Equal(dataService.dataItem.Info, expectedInfoBytes) {
+		t.Errorf("Обновленные данные Info не совпадают с ожидаемыми")
+	}
+
+	if dataService.dataItem.Meta != "new meta" {
+		t.Errorf("Ожидалась Meta 'new meta', получили: %s", dataService.dataItem.Meta)
+	}
+
+	output := writer.String()
+	if !strings.Contains(output, "Данные успешно обновлены.") {
+		t.Errorf("Вывод не содержит 'Данные успешно обновлены.', получили: %s", output)
+	}
+}
+
+func TestUpdateCommand_Execute_UpdateBinaryData(t *testing.T) {
+	currentData := entity.BinaryData{
+		FileName:    "current.bin",
+		FileContent: []byte("current content"),
+	}
+	infoBytes, _ := json.Marshal(currentData)
+	dataItem := &datapb.DataItem{
+		Id:       3,
+		InfoType: "binary",
+		Info:     infoBytes,
+		Meta:     "current meta",
+	}
+
+	dataService := &mockUpdateDataService{
+		dataItem: dataItem,
+	}
+
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+
+	newFileName := "newfile.bin"
+	newFileContent := []byte("new content")
+	os.WriteFile(newFileName, newFileContent, 0644)
+	defer os.Remove(newFileName)
+
+	input := strings.Join([]string{
+		"3",
+		newFileName,
+		"new meta",
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err != nil {
+		t.Fatalf("Не ожидалось ошибки, получили: %v", err)
+	}
+
+	expectedUpdatedData := &entity.BinaryData{
+		FileName:    newFileName,
+		FileContent: newFileContent,
+	}
+	expectedInfoBytes, _ := json.Marshal(expectedUpdatedData)
+
+	if dataService.dataItem.InfoType != "binary" {
+		t.Errorf("Ожидался InfoType 'binary', получили: %s", dataService.dataItem.InfoType)
+	}
+
+	if !bytes.Equal(dataService.dataItem.Info, expectedInfoBytes) {
+		t.Errorf("Обновленные данные Info не совпадают с ожидаемыми")
+	}
+
+	if dataService.dataItem.Meta != "new meta" {
+		t.Errorf("Ожидалась Meta 'new meta', получили: %s", dataService.dataItem.Meta)
+	}
+
+	output := writer.String()
+	if !strings.Contains(output, "Данные успешно обновлены.") {
+		t.Errorf("Вывод не содержит 'Данные успешно обновлены.', получили: %s", output)
+	}
+}
+
+func TestUpdateCommand_Execute_UpdateBankCardData(t *testing.T) {
+	currentData := entity.BankCardData{
+		CardNumber: "1234-5678-9012-3456",
+		ExpiryDate: "12/24",
+		CVV:        "123",
+		HolderName: "Current Holder",
+	}
+	infoBytes, _ := json.Marshal(currentData)
+	dataItem := &datapb.DataItem{
+		Id:       4,
+		InfoType: "bank_card",
+		Info:     infoBytes,
+		Meta:     "current meta",
+	}
+
+	dataService := &mockUpdateDataService{
+		dataItem: dataItem,
+	}
+
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+
+	input := strings.Join([]string{
+		"4",
+		"4321-8765-2109-6543",
+		"11/25",
+		"321",
+		"New Holder",
+		"new meta",
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err != nil {
+		t.Fatalf("Не ожидалось ошибки, получили: %v", err)
+	}
+
+	expectedUpdatedData := &entity.BankCardData{
+		CardNumber: "4321-8765-2109-6543",
+		ExpiryDate: "11/25",
+		CVV:        "321",
+		HolderName: "New Holder",
+	}
+	expectedInfoBytes, _ := json.Marshal(expectedUpdatedData)
+
+	if dataService.dataItem.InfoType != "bank_card" {
+		t.Errorf("Ожидался InfoType 'bank_card', получили: %s", dataService.dataItem.InfoType)
+	}
+
+	if !bytes.Equal(dataService.dataItem.Info, expectedInfoBytes) {
+		t.Errorf("Обновленные данные Info не совпадают с ожидаемыми")
+	}
+
+	if dataService.dataItem.Meta != "new meta" {
+		t.Errorf("Ожидалась Meta 'new meta', получили: %s", dataService.dataItem.Meta)
+	}
+
+	output := writer.String()
+	if !strings.Contains(output, "Данные успешно обновлены.") {
+		t.Errorf("Вывод не содержит 'Данные успешно обновлены.', получили: %s", output)
+	}
+}
+
+func TestUpdateCommand_Execute_ScannerError(t *testing.T) {
+	dataService := &mockUpdateDataService{}
+	tokenHolder := &entity.TokenHolder{Token: "valid_token"}
+	reader := &errorReader{}
+	writer := &bytes.Buffer{}
+
+	updateCmd := NewUpdateCommand(dataService, tokenHolder, reader, writer)
+
+	err := updateCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "ошибка ввода ID") {
+		t.Errorf("Ожидалась ошибка ввода ID, получили: %v", err)
 	}
 }

@@ -3,8 +3,10 @@ package command
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
@@ -72,6 +74,44 @@ func (c *GetCommand) Execute() error {
 	fmt.Fprintf(c.writer, "Данные: %s\n", dataItem.Info)
 	fmt.Fprintf(c.writer, "Мета: %s\n", dataItem.Meta)
 	fmt.Fprintf(c.writer, "Создано: %s\n", dataItem.Created.AsTime())
+
+	switch dataItem.InfoType {
+	case "login_password":
+		var loginPasswordData entity.LoginPasswordData
+		if err := json.Unmarshal(dataItem.Info, &loginPasswordData); err != nil {
+			return fmt.Errorf("ошибка десериализации данных: %w", err)
+		}
+		fmt.Fprintf(c.writer, "Логин: %s\n", loginPasswordData.Login)
+		fmt.Fprintf(c.writer, "Пароль: %s\n", loginPasswordData.Password)
+		fmt.Fprintf(c.writer, "URL: %s\n", loginPasswordData.URL)
+	case "text":
+		var textData entity.TextData
+		if err := json.Unmarshal(dataItem.Info, &textData); err != nil {
+			return fmt.Errorf("ошибка десериализации данных: %w", err)
+		}
+		fmt.Fprintf(c.writer, "Текст: %s\n", textData.Text)
+	case "binary":
+		var binaryData entity.BinaryData
+		if err := json.Unmarshal(dataItem.Info, &binaryData); err != nil {
+			return fmt.Errorf("ошибка десериализации данных: %w", err)
+		}
+		err = os.WriteFile(binaryData.FileName, binaryData.FileContent, 0644)
+		if err != nil {
+			return fmt.Errorf("ошибка сохранения файла: %w", err)
+		}
+		fmt.Fprintf(c.writer, "Бинарные данные сохранены в файл: %s\n", binaryData.FileName)
+	case "bank_card":
+		var bankCardData entity.BankCardData
+		if err := json.Unmarshal(dataItem.Info, &bankCardData); err != nil {
+			return fmt.Errorf("ошибка десериализации данных: %w", err)
+		}
+		fmt.Fprintf(c.writer, "Номер карты: %s\n", bankCardData.CardNumber)
+		fmt.Fprintf(c.writer, "Срок действия: %s\n", bankCardData.ExpiryDate)
+		fmt.Fprintf(c.writer, "CVV: %s\n", bankCardData.CVV)
+		fmt.Fprintf(c.writer, "Имя держателя: %s\n", bankCardData.HolderName)
+	default:
+		fmt.Fprintln(c.writer, "Неизвестный тип данных")
+	}
 
 	return nil
 }

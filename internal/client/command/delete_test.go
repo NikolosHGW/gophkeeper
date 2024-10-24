@@ -126,3 +126,11 @@ func TestDeleteCommand_Execute(t *testing.T) {
 		})
 	}
 }
+
+type errorWriter struct {
+	err error
+}
+
+func (w *errorWriter) Write(p []byte) (n int, err error) {
+	return 0, w.err
+}

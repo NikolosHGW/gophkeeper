@@ -49,7 +49,7 @@ func TestDataService_AddData(t *testing.T) {
 	token := "test-token"
 	dataItem := &datapb.DataItem{
 		InfoType: "text",
-		Info:     "test info",
+		Info:     []byte("test info"),
 		Meta:     "test meta",
 	}
 
@@ -88,7 +88,7 @@ func TestDataService_GetData(t *testing.T) {
 	expectedData := &datapb.DataItem{
 		Id:       dataID,
 		InfoType: "text",
-		Info:     "test info",
+		Info:     []byte("test info"),
 		Meta:     "test meta",
 	}
 
@@ -117,7 +117,7 @@ func TestDataService_UpdateData(t *testing.T) {
 	dataItem := &datapb.DataItem{
 		Id:       1,
 		InfoType: "text",
-		Info:     "updated info",
+		Info:     []byte("updated info"),
 		Meta:     "updated meta",
 	}
 
@@ -175,7 +175,7 @@ func TestDataService_AddData_Error(t *testing.T) {
 	token := "test-token"
 	dataItem := &datapb.DataItem{
 		InfoType: "text",
-		Info:     "test info",
+		Info:     []byte("test info"),
 		Meta:     "test meta",
 	}
 

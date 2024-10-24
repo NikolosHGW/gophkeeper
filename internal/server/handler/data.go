@@ -41,7 +41,7 @@ func (h *DataServer) AddData(ctx context.Context, req *datapb.AddDataRequest) (*
 
 	data := &entity.UserData{
 		InfoType: req.Data.InfoType,
-		Info:     req.Data.Info,
+		Info:     string(req.Data.Info),
 		Meta:     req.Data.Meta,
 	}
 
@@ -68,7 +68,7 @@ func (h *DataServer) GetData(ctx context.Context, req *datapb.GetDataRequest) (*
 		Data: &datapb.DataItem{
 			Id:       int32(data.ID),
 			InfoType: data.InfoType,
-			Info:     data.Info,
+			Info:     []byte(data.Info),
 			Meta:     data.Meta,
 			Created:  timestamppb.New(data.Created),
 		},
@@ -86,7 +86,7 @@ func (h *DataServer) UpdateData(ctx context.Context, req *datapb.UpdateDataReque
 		ID:       int(req.Data.Id),
 		UserID:   userID,
 		InfoType: req.Data.InfoType,
-		Info:     req.Data.Info,
+		Info:     string(req.Data.Info),
 		Meta:     req.Data.Meta,
 		Created:  req.Data.Created.AsTime(),
 	}
