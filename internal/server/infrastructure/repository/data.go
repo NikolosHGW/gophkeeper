@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/NikolosHGW/goph-keeper/internal/server/entity"
 	"github.com/NikolosHGW/goph-keeper/pkg/logger"
@@ -11,6 +12,7 @@ import (
 type dataStorager interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type dataRepository struct {
@@ -69,4 +71,37 @@ func (r *dataRepository) DeleteData(ctx context.Context, userID, dataID int) err
     `
 	_, err := r.db.ExecContext(ctx, query, dataID, userID)
 	return err
+}
+
+func (r *dataRepository) ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+	var dataItems []*entity.UserData
+
+	query := `SELECT id, user_id, info_type, info, meta, created FROM user_data WHERE user_id = $1`
+	args := []interface{}{userID}
+
+	if infoType != "" {
+		query += ` AND info_type = $2`
+		args = append(args, infoType)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса к базе данных: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var data entity.UserData
+		err := rows.Scan(&data.ID, &data.UserID, &data.InfoType, &data.Info, &data.Meta, &data.Created)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка чтения данных из базы данных: %w", err)
+		}
+		dataItems = append(dataItems, &data)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %w", err)
+	}
+
+	return dataItems, nil
 }

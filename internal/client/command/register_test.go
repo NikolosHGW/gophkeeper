@@ -80,3 +80,10 @@ func TestRegisterCommand_Execute_InputError(t *testing.T) {
 	assert.Contains(t, err.Error(), "ошибка ввода логина")
 	assert.Empty(t, tokenHolder.Token)
 }
+
+func TestRegisterCommand_Name(t *testing.T) {
+	cmd := NewRegisterCommand(nil, nil, nil, nil)
+	expectedName := "register"
+	actualName := cmd.Name()
+	assert.Equal(t, expectedName, actualName, "Название команды должно быть 'register'")
+}

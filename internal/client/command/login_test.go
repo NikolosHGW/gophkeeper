@@ -115,3 +115,10 @@ type ErrorWriter struct{}
 func (e *ErrorWriter) Write(p []byte) (n int, err error) {
 	return 0, errors.New("write error")
 }
+
+func TestLoginCommand_Name(t *testing.T) {
+	cmd := NewLoginCommand(nil, nil, nil, nil)
+	expectedName := "login"
+	actualName := cmd.Name()
+	assert.Equal(t, expectedName, actualName, "Название команды должно быть 'login'")
+}

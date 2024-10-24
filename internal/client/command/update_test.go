@@ -11,6 +11,7 @@ import (
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
 	"github.com/NikolosHGW/goph-keeper/internal/client/entity"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockUpdateDataService struct {
@@ -368,4 +369,11 @@ func TestUpdateCommand_Execute_ScannerError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "ошибка ввода ID") {
 		t.Errorf("Ожидалась ошибка ввода ID, получили: %v", err)
 	}
+}
+
+func TestUpdateCommand_Name(t *testing.T) {
+	cmd := NewUpdateCommand(nil, nil, nil, nil)
+	expectedName := "update"
+	actualName := cmd.Name()
+	assert.Equal(t, expectedName, actualName, "Название команды должно быть 'update'")
 }

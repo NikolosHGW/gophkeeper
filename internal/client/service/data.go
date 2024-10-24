@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
+	"github.com/NikolosHGW/goph-keeper/internal/client/entity"
 	"github.com/NikolosHGW/goph-keeper/pkg/logger"
 	"google.golang.org/grpc/metadata"
 )
@@ -59,4 +60,17 @@ func (s *dataService) DeleteData(ctx context.Context, token string, id int32) er
 		return err
 	}
 	return nil
+}
+
+func (s *dataService) ListData(ctx context.Context, token string, filter *entity.DataFilter) ([]*datapb.DataItem, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", token)
+
+	req := &datapb.ListDataRequest{
+		InfoType: filter.InfoType,
+	}
+	res, err := s.client.ListData(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.DataItems, nil
 }

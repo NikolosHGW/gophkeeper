@@ -52,6 +52,7 @@ func main() {
 		command.NewGetCommand(dataService, tokenHolder, os.Stdin, os.Stdout),
 		command.NewUpdateCommand(dataService, tokenHolder, os.Stdin, os.Stdout),
 		command.NewDeleteCommand(dataService, tokenHolder, os.Stdin, os.Stdout),
+		command.NewListCommand(dataService, tokenHolder, os.Stdin, os.Stdout),
 	}
 
 	commandNames := make([]string, len(commands))

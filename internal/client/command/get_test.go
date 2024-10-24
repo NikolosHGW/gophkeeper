@@ -12,6 +12,7 @@ import (
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
 	"github.com/NikolosHGW/goph-keeper/internal/client/entity"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -280,4 +281,11 @@ type errorReader struct{}
 
 func (e *errorReader) Read(p []byte) (n int, err error) {
 	return 0, io.EOF
+}
+
+func TestGetCommand_Name(t *testing.T) {
+	cmd := NewGetCommand(nil, nil, nil, nil)
+	expectedName := "get"
+	actualName := cmd.Name()
+	assert.Equal(t, expectedName, actualName, "Название команды должно быть 'get'")
 }

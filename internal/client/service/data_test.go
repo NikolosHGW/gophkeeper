@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/NikolosHGW/goph-keeper/api/datapb"
+	"github.com/NikolosHGW/goph-keeper/internal/client/entity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
@@ -34,6 +35,11 @@ func (m *MockDataServiceClient) UpdateData(ctx context.Context, in *datapb.Updat
 func (m *MockDataServiceClient) DeleteData(ctx context.Context, in *datapb.DeleteDataRequest, opts ...grpc.CallOption) (*datapb.DeleteDataResponse, error) {
 	args := m.Called(ctx, in)
 	return args.Get(0).(*datapb.DeleteDataResponse), args.Error(1)
+}
+
+func (m *MockDataServiceClient) ListData(ctx context.Context, in *datapb.ListDataRequest, opts ...grpc.CallOption) (*datapb.ListDataResponse, error) {
+	args := m.Called(ctx, in)
+	return args.Get(0).(*datapb.ListDataResponse), args.Error(1)
 }
 
 func TestDataService_AddData(t *testing.T) {
@@ -190,4 +196,107 @@ func TestDataService_AddData_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, int32(0), id)
 	mockClient.AssertExpectations(t)
+}
+
+func TestDataService_ListData(t *testing.T) {
+	mockClient := new(MockDataServiceClient)
+	mockLogger := new(mockLogger)
+
+	dataService := &dataService{
+		client: mockClient,
+		logger: mockLogger,
+	}
+
+	ctx := context.Background()
+	token := "test-token"
+
+	filter := &entity.DataFilter{
+		InfoType: "text",
+	}
+
+	ctxWithMetadata := metadata.AppendToOutgoingContext(ctx, "authorization", token)
+
+	expectedRequest := &datapb.ListDataRequest{
+		InfoType: filter.InfoType,
+	}
+
+	expectedDataItems := []*datapb.DataItem{
+		{
+			Id:       1,
+			InfoType: "text",
+			Info:     []byte("test info 1"),
+			Meta:     "test meta 1",
+		},
+		{
+			Id:       2,
+			InfoType: "text",
+			Info:     []byte("test info 2"),
+			Meta:     "test meta 2",
+		},
+	}
+
+	expectedResponse := &datapb.ListDataResponse{
+		DataItems: expectedDataItems,
+	}
+
+	mockClient.On("ListData", ctxWithMetadata, expectedRequest).Return(expectedResponse, nil)
+
+	dataItems, err := dataService.ListData(ctx, token, filter)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDataItems, dataItems)
+	mockClient.AssertExpectations(t)
+}
+
+func TestDataService_ListData_Error(t *testing.T) {
+	mockClient := new(MockDataServiceClient)
+	mockLogger := new(mockLogger)
+
+	dataService := &dataService{
+		client: mockClient,
+		logger: mockLogger,
+	}
+
+	ctx := context.Background()
+	token := "test-token"
+
+	filter := &entity.DataFilter{
+		InfoType: "text",
+	}
+
+	ctxWithMetadata := metadata.AppendToOutgoingContext(ctx, "authorization", token)
+
+	expectedRequest := &datapb.ListDataRequest{
+		InfoType: filter.InfoType,
+	}
+
+	mockClient.On("ListData", ctxWithMetadata, expectedRequest).Return((*datapb.ListDataResponse)(nil), errors.New("test error"))
+
+	dataItems, err := dataService.ListData(ctx, token, filter)
+
+	assert.Error(t, err)
+	assert.Nil(t, dataItems)
+	mockClient.AssertExpectations(t)
+}
+
+type MockGRPCClient struct {
+	DataClient datapb.DataServiceClient
+}
+
+func TestNewDataService(t *testing.T) {
+	mockDataClient := &MockDataServiceClient{}
+
+	mockGRPCClient := &GRPCClient{
+		DataClient: mockDataClient,
+	}
+
+	mockLogger := &mockLogger{}
+
+	dataService := NewDataService(mockGRPCClient, mockLogger)
+
+	assert.NotNil(t, dataService)
+
+	assert.Equal(t, mockDataClient, dataService.client)
+
+	assert.Equal(t, mockLogger, dataService.logger)
 }

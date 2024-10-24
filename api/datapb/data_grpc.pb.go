@@ -23,6 +23,7 @@ const (
 	DataService_GetData_FullMethodName    = "/data.DataService/GetData"
 	DataService_UpdateData_FullMethodName = "/data.DataService/UpdateData"
 	DataService_DeleteData_FullMethodName = "/data.DataService/DeleteData"
+	DataService_ListData_FullMethodName   = "/data.DataService/ListData"
 )
 
 // DataServiceClient is the client API for DataService service.
@@ -33,6 +34,7 @@ type DataServiceClient interface {
 	GetData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*GetDataResponse, error)
 	UpdateData(ctx context.Context, in *UpdateDataRequest, opts ...grpc.CallOption) (*UpdateDataResponse, error)
 	DeleteData(ctx context.Context, in *DeleteDataRequest, opts ...grpc.CallOption) (*DeleteDataResponse, error)
+	ListData(ctx context.Context, in *ListDataRequest, opts ...grpc.CallOption) (*ListDataResponse, error)
 }
 
 type dataServiceClient struct {
@@ -83,6 +85,16 @@ func (c *dataServiceClient) DeleteData(ctx context.Context, in *DeleteDataReques
 	return out, nil
 }
 
+func (c *dataServiceClient) ListData(ctx context.Context, in *ListDataRequest, opts ...grpc.CallOption) (*ListDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDataResponse)
+	err := c.cc.Invoke(ctx, DataService_ListData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DataServiceServer is the server API for DataService service.
 // All implementations must embed UnimplementedDataServiceServer
 // for forward compatibility.
@@ -91,6 +103,7 @@ type DataServiceServer interface {
 	GetData(context.Context, *GetDataRequest) (*GetDataResponse, error)
 	UpdateData(context.Context, *UpdateDataRequest) (*UpdateDataResponse, error)
 	DeleteData(context.Context, *DeleteDataRequest) (*DeleteDataResponse, error)
+	ListData(context.Context, *ListDataRequest) (*ListDataResponse, error)
 	mustEmbedUnimplementedDataServiceServer()
 }
 
@@ -112,6 +125,9 @@ func (UnimplementedDataServiceServer) UpdateData(context.Context, *UpdateDataReq
 }
 func (UnimplementedDataServiceServer) DeleteData(context.Context, *DeleteDataRequest) (*DeleteDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteData not implemented")
+}
+func (UnimplementedDataServiceServer) ListData(context.Context, *ListDataRequest) (*ListDataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListData not implemented")
 }
 func (UnimplementedDataServiceServer) mustEmbedUnimplementedDataServiceServer() {}
 func (UnimplementedDataServiceServer) testEmbeddedByValue()                     {}
@@ -206,6 +222,24 @@ func _DataService_DeleteData_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataService_ListData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataServiceServer).ListData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataService_ListData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataServiceServer).ListData(ctx, req.(*ListDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DataService_ServiceDesc is the grpc.ServiceDesc for DataService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +262,10 @@ var DataService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteData",
 			Handler:    _DataService_DeleteData_Handler,
+		},
+		{
+			MethodName: "ListData",
+			Handler:    _DataService_ListData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

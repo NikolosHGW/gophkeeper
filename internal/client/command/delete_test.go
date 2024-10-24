@@ -134,3 +134,10 @@ type errorWriter struct {
 func (w *errorWriter) Write(p []byte) (n int, err error) {
 	return 0, w.err
 }
+
+func TestDeleteCommand_Name(t *testing.T) {
+	cmd := NewDeleteCommand(nil, nil, nil, nil)
+	expectedName := "delete"
+	actualName := cmd.Name()
+	assert.Equal(t, expectedName, actualName, "Название команды должно быть 'delete'")
+}

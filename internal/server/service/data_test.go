@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/NikolosHGW/goph-keeper/internal/server/entity"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +33,11 @@ func (m *DataRepoMock) UpdateData(ctx context.Context, data *entity.UserData) er
 func (m *DataRepoMock) DeleteData(ctx context.Context, userID, dataID int) error {
 	args := m.Called(ctx, userID, dataID)
 	return args.Error(0)
+}
+
+func (m *DataRepoMock) ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+	args := m.Called(ctx, userID, infoType)
+	return args.Get(0).([]*entity.UserData), args.Error(1)
 }
 
 func TestDataService_AddData(t *testing.T) {
@@ -164,6 +171,69 @@ func TestDataService_GetDataByID_DecryptionError(t *testing.T) {
 	_, err := dataService.GetDataByID(ctx, userID, dataID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "ошибка расшифровки")
+
+	dataRepoMock.AssertExpectations(t)
+}
+
+func TestDataService_ListData(t *testing.T) {
+	key := []byte("01234567890123456789012345678901")
+	encryptionService := NewEncryptionService(key)
+
+	dataRepoMock := new(DataRepoMock)
+	dataService := NewDataService(dataRepoMock, encryptionService)
+
+	ctx := context.Background()
+	userID := 1
+	infoType := "text"
+
+	encryptedMeta1, _ := encryptionService.Encrypt("метаданные1")
+	encryptedMeta2, _ := encryptionService.Encrypt("метаданные2")
+
+	storedData := []*entity.UserData{
+		{
+			ID:       1,
+			UserID:   userID,
+			InfoType: "text",
+			Meta:     string(encryptedMeta1),
+			Created:  time.Now(),
+		},
+		{
+			ID:       2,
+			UserID:   userID,
+			InfoType: "text",
+			Meta:     string(encryptedMeta2),
+			Created:  time.Now(),
+		},
+	}
+
+	dataRepoMock.On("ListData", ctx, userID, infoType).Return(storedData, nil)
+
+	dataItems, err := dataService.ListData(ctx, userID, infoType)
+	assert.NoError(t, err)
+	assert.Len(t, dataItems, 2)
+
+	assert.Equal(t, "метаданные1", dataItems[0].Meta)
+	assert.Equal(t, "метаданные2", dataItems[1].Meta)
+
+	dataRepoMock.AssertExpectations(t)
+}
+
+func TestDataService_ListData_Error(t *testing.T) {
+	key := []byte("01234567890123456789012345678901")
+	encryptionService := NewEncryptionService(key)
+
+	dataRepoMock := new(DataRepoMock)
+	dataService := NewDataService(dataRepoMock, encryptionService)
+
+	ctx := context.Background()
+	userID := 1
+	infoType := "text"
+
+	dataRepoMock.On("ListData", ctx, userID, infoType).Return(([]*entity.UserData)(nil), fmt.Errorf("database error"))
+
+	_, err := dataService.ListData(ctx, userID, infoType)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ошибка получения данных из репозитория")
 
 	dataRepoMock.AssertExpectations(t)
 }

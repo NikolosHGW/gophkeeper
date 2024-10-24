@@ -12,6 +12,7 @@ type dataRepo interface {
 	GetDataByID(ctx context.Context, userID, dataID int) (*entity.UserData, error)
 	UpdateData(ctx context.Context, data *entity.UserData) error
 	DeleteData(ctx context.Context, userID, dataID int) error
+	ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error)
 }
 
 type dataService struct {
@@ -89,4 +90,21 @@ func (s *dataService) UpdateData(ctx context.Context, userID int, data *entity.U
 
 func (s *dataService) DeleteData(ctx context.Context, userID, dataID int) error {
 	return s.dataRepo.DeleteData(ctx, userID, dataID)
+}
+
+func (s *dataService) ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+	dataItems, err := s.dataRepo.ListData(ctx, userID, infoType)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения данных из репозитория: %w", err)
+	}
+
+	for _, data := range dataItems {
+		decryptedMetaBytes, err := s.encryptionService.Decrypt(data.Meta)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка расшифровки Meta: %w", err)
+		}
+		data.Meta = string(decryptedMetaBytes)
+	}
+
+	return dataItems, nil
 }

@@ -57,14 +57,18 @@ func TestConfig_parseFlags_Success(t *testing.T) {
 
 func TestConfig_Getters(t *testing.T) {
 	cfg := &config{
-		RunAddress:  "127.0.0.1:9090",
-		DatabaseURI: "user=test password=test dbname=testdb sslmode=disable",
-		SecretKey:   "supersecret",
-		CryptoKey:   "/path/to/crypto.key",
+		RunAddress:    "127.0.0.1:9090",
+		DatabaseURI:   "user=test password=test dbname=testdb sslmode=disable",
+		SecretKey:     "supersecret",
+		CryptoKey:     "/path/to/crypto.key",
+		ServerKeyPath: "/path/to/server.key",
+		ServerCrtPath: "/path/to/server.crt",
 	}
 
 	assert.Equal(t, "127.0.0.1:9090", cfg.GetRunAddress())
 	assert.Equal(t, "user=test password=test dbname=testdb sslmode=disable", cfg.GetDatabaseURI())
 	assert.Equal(t, "supersecret", cfg.GetSecretKey())
 	assert.Equal(t, "/path/to/crypto.key", cfg.GetCryptoKeyPath())
+	assert.Equal(t, "/path/to/server.key", cfg.GetServerKeyPath())
+	assert.Equal(t, "/path/to/server.crt", cfg.GetServerCrtPath())
 }

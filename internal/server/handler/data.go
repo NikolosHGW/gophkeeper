@@ -18,6 +18,7 @@ type dataService interface {
 	GetDataByID(ctx context.Context, userID, dataID int) (*entity.UserData, error)
 	UpdateData(ctx context.Context, userID int, data *entity.UserData) error
 	DeleteData(ctx context.Context, userID, dataID int) error
+	ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error)
 }
 
 type DataServer struct {
@@ -126,4 +127,28 @@ func getUserIDFromContext(ctx context.Context) (int, error) {
 		return 0, errors.New("userID имеет неверный тип")
 	}
 	return userID, nil
+}
+
+func (h *DataServer) ListData(ctx context.Context, req *datapb.ListDataRequest) (*datapb.ListDataResponse, error) {
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "не удалось получить userID из контекста")
+	}
+
+	dataItems, err := h.dataService.ListData(ctx, userID, req.InfoType)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "ошибка при получении данных")
+	}
+
+	responseItems := make([]*datapb.DataItem, len(dataItems))
+	for i, item := range dataItems {
+		responseItems[i] = &datapb.DataItem{
+			Id:       int32(item.ID),
+			InfoType: item.InfoType,
+			Meta:     item.Meta,
+			Created:  timestamppb.New(item.Created),
+		}
+	}
+
+	return &datapb.ListDataResponse{DataItems: responseItems}, nil
 }

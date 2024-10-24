@@ -23,6 +23,7 @@ type mockDataService struct {
 	GetDataByIDFunc func(ctx context.Context, userID, dataID int) (*entity.UserData, error)
 	UpdateDataFunc  func(ctx context.Context, userID int, data *entity.UserData) error
 	DeleteDataFunc  func(ctx context.Context, userID, dataID int) error
+	ListDataFunc    func(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error)
 }
 
 func (m *mockDataService) AddData(ctx context.Context, userID int, data *entity.UserData) (int, error) {
@@ -43,6 +44,10 @@ func (m *mockDataService) DeleteData(ctx context.Context, userID, dataID int) er
 
 func contextWithUserID(userID int) context.Context {
 	return context.WithValue(context.Background(), contextkey.UserIDKey, userID)
+}
+
+func (m *mockDataService) ListData(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+	return m.ListDataFunc(ctx, userID, infoType)
 }
 
 func TestAddData(t *testing.T) {
@@ -413,6 +418,124 @@ func compareDeleteDataResponse(got, want *datapb.DeleteDataResponse) bool {
 	}
 	if got == nil || want == nil {
 		return false
+	}
+	return true
+}
+
+func TestListData(t *testing.T) {
+	mockService := &mockDataService{}
+	mockLogger := &mockLogger{}
+
+	server := NewDataServer(mockService, mockLogger)
+
+	tests := []struct {
+		name          string
+		ctx           context.Context
+		request       *datapb.ListDataRequest
+		setupMocks    func()
+		expectedResp  *datapb.ListDataResponse
+		expectedError error
+	}{
+		{
+			name: "Success",
+			ctx:  contextWithUserID(1),
+			request: &datapb.ListDataRequest{
+				InfoType: "text",
+			},
+			setupMocks: func() {
+				mockService.ListDataFunc = func(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+					if userID != 1 || infoType != "text" {
+						t.Errorf("Unexpected userID or infoType: %d, %s", userID, infoType)
+					}
+					return []*entity.UserData{
+						{
+							ID:       1,
+							InfoType: "text",
+							Meta:     "метаданные1",
+							Created:  time.Unix(0, 0),
+						},
+						{
+							ID:       2,
+							InfoType: "text",
+							Meta:     "метаданные2",
+							Created:  time.Unix(0, 0),
+						},
+					}, nil
+				}
+			},
+			expectedResp: &datapb.ListDataResponse{
+				DataItems: []*datapb.DataItem{
+					{
+						Id:       1,
+						InfoType: "text",
+						Meta:     "метаданные1",
+						Created:  timestamppb.New(time.Unix(0, 0)),
+					},
+					{
+						Id:       2,
+						InfoType: "text",
+						Meta:     "метаданные2",
+						Created:  timestamppb.New(time.Unix(0, 0)),
+					},
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:          "NoUserID",
+			ctx:           context.Background(),
+			request:       &datapb.ListDataRequest{},
+			setupMocks:    func() {},
+			expectedResp:  nil,
+			expectedError: statusError(codes.Internal, "не удалось получить userID из контекста"),
+		},
+		{
+			name: "DataServiceError",
+			ctx:  contextWithUserID(1),
+			request: &datapb.ListDataRequest{
+				InfoType: "text",
+			},
+			setupMocks: func() {
+				mockService.ListDataFunc = func(ctx context.Context, userID int, infoType string) ([]*entity.UserData, error) {
+					return nil, errors.New("service error")
+				}
+			},
+			expectedResp:  nil,
+			expectedError: statusError(codes.Internal, "ошибка при получении данных"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+			resp, err := server.ListData(tt.ctx, tt.request)
+			if !compareErrors(err, tt.expectedError) {
+				t.Errorf("Expected error: %v, got: %v", tt.expectedError, err)
+			}
+			if !compareListDataResponse(resp, tt.expectedResp) {
+				t.Errorf("Expected response: %v, got: %v", tt.expectedResp, resp)
+			}
+		})
+	}
+}
+
+func compareListDataResponse(got, want *datapb.ListDataResponse) bool {
+	if got == nil && want == nil {
+		return true
+	}
+	if got == nil || want == nil {
+		return false
+	}
+	if len(got.DataItems) != len(want.DataItems) {
+		return false
+	}
+	for i := range got.DataItems {
+		if got.DataItems[i].Id != want.DataItems[i].Id ||
+			got.DataItems[i].InfoType != want.DataItems[i].InfoType ||
+			got.DataItems[i].Meta != want.DataItems[i].Meta ||
+			!got.DataItems[i].Created.AsTime().Equal(want.DataItems[i].Created.AsTime()) {
+			return false
+		}
 	}
 	return true
 }

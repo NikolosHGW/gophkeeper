@@ -42,9 +42,18 @@ message DeleteDataRequest {
 
 message DeleteDataResponse {}
 
+message ListDataRequest {
+    string info_type = 1;
+}
+
+message ListDataResponse {
+    repeated DataItem data_items = 1;
+}
+
 service DataService {
     rpc AddData(AddDataRequest) returns (AddDataResponse);
     rpc GetData(GetDataRequest) returns (GetDataResponse);
     rpc UpdateData(UpdateDataRequest) returns (UpdateDataResponse);
     rpc DeleteData(DeleteDataRequest) returns (DeleteDataResponse);
+    rpc ListData (ListDataRequest) returns (ListDataResponse);
 }

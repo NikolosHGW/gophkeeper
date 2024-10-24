@@ -25,3 +25,7 @@ type BankCardData struct {
 	CVV        string
 	HolderName string
 }
+
+type DataFilter struct {
+	InfoType string
+}
