@@ -13,6 +13,13 @@ import (
 	"github.com/NikolosHGW/goph-keeper/pkg/logger"
 )
 
+const defaultTagValue = "N/A"
+
+var (
+	buildVersion = defaultTagValue
+	buildDate    = defaultTagValue
+)
+
 func main() {
 	config := config.NewConfig()
 
@@ -54,6 +61,11 @@ func main() {
 		commandMap[cmd.Name()] = cmd
 		commandNames[i] = cmd.Name()
 	}
+
+	fmt.Println(
+		"Build version: ", buildVersion, "\n",
+		"Build date: ", buildDate,
+	)
 
 	fmt.Println("Доступные команды: ", strings.Join(commandNames, ", "))
 	for {
